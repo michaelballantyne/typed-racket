@@ -367,6 +367,7 @@
 (define (type->static-contract type init-fail
                                #:typed-side [typed-side #t]
                                #:enforcement-mode [te-mode (current-type-enforcement-mode)])
+  (printf "generating contract for type: ~a\n" type)
   (case te-mode
     [(shallow)
      (type->static-contract/shallow type #:typed-side typed-side)]
@@ -464,6 +465,18 @@
                                  (λ () (loop resolved-name 'typed rv))
                                  (λ () (loop resolved-name 'both rv)))
                (lookup-name-sc type typed-side)])]
+        ;; Special case: (Structure A) where A is a parameteric
+        ;; polymorphic variable. We can use a flat contract here.
+        [(App: (Name/struct:) (list (F: sym)))
+         #:when (eq? any/sc
+                     (triple-typed
+                      (hash-ref recursive-values sym)))
+         (printf "special case fired for ~a\n" type)
+         (match (resolve-once type)
+           [(Struct: _ _ _ _ _ pred? _)
+            (flat/sc #`(flat-named-contract
+                        '#,(syntax-e pred?)
+                        (lambda (x) (#,pred? x))))])]
        ;; Ordinary type applications or struct type names, just resolve
        [(or (App: _ _) (Name/struct:)) (t->sc (resolve-once type))]
        [(Univ:) (only-untyped any/sc)]
